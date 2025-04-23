@@ -3,14 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.responses import Response
 import base64
-import io
 import cv2
 import numpy as np
 import torch
-from PIL import Image
-import os
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Tuple
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 # Setup logging
@@ -56,18 +53,18 @@ class ImageAnonymizer:
 
     def get_segmentation_mask(self, image: np.ndarray, point: tuple[int, int]) -> Tuple[np.ndarray, float]:
         """Generate segmentation mask from a point."""
-        init_sam()
+        self.init_sam()
 
         # Calculate bounding box around the point
         height, width = image.shape[:2]
         box_size = min(width, height) // 4
         x, y = point
-        
+
         x_min = max(0, x - box_size)
         y_min = max(0, y - box_size)
         x_max = min(width, x + box_size)
         y_max = min(height, y + box_size)
-        
+
         bbox = (x_min, y_min, x_max, y_max)
 
         with torch.inference_mode(), torch.autocast(self.device, dtype=torch.bfloat16):
@@ -94,7 +91,7 @@ class ImageAnonymizer:
         """Apply blur to masked region."""
         if mask.ndim == 2:
             mask = np.stack((mask,) * 3, axis=-1)
-        
+
         blurred = cv2.GaussianBlur(image, (35, 35), 50)
         return np.where(mask, blurred, image)
 
@@ -109,7 +106,7 @@ def decode_base64_image(base64_string: str) -> Tuple[np.ndarray, str]:
             image_format = header.split(';')[0].split('/')[1]
         else:
             image_format = 'jpeg'
-        
+
         image_bytes = base64.b64decode(base64_string)
         nparr = np.frombuffer(image_bytes, np.uint8)
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -127,24 +124,24 @@ async def segment_image(request: SegmentRequest):
     try:
         # Decode the image
         image, image_format = decode_base64_image(request.image)
-        
+
         # Get segmentation mask
         point = (request.point.x, request.point.y)
         mask, score = anonymizer.get_segmentation_mask(image, point)
-        
+
         # Apply blur
         result = anonymizer._apply_blur(image, mask)
-        
+
         # Encode result
         success, buffer = cv2.imencode(f'.{image_format}', result)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to encode image")
-        
+
         return Response(
             content=buffer.tobytes(),
             media_type=f"image/{image_format}"
         )
-        
+
     except Exception as e:
         logger.error(f"Error processing image: {e}")
         raise HTTPException(status_code=500, detail=str(e))
