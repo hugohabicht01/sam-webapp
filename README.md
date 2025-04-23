@@ -1,5 +1,11 @@
 # Image Anonymization Application
+**Vibe coded app, built with bolt.new**
+*Its kinda wild how quickly you can whip up a prototype to solve a specific task, with a custom built solution*
 
+Please don't use this repo for anything important, I take no responsibility for anything, some model built this and had to be coerced to actually get it working... Very impressive nevertheless
+
+
+## About
 A fullstack web application for image anonymization using Vue 3 with TypeScript and Python FastAPI. The application leverages the Segment Anything Model (SAM 2.1) to intelligently identify and blur selected regions in images.
 
 ## Features
